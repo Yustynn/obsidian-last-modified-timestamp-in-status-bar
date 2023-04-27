@@ -7,8 +7,8 @@ import {
 	moment
 } from 'obsidian';
 
-type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 
+type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 interface DynamicLastModifiedTimestampSettings {
 	timestampFormat: string;
 	statusBarTitle: string;
@@ -62,7 +62,7 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 			this.updateDisplay()
 		});
 
-		this.addSettingTab(new SettingTab(this.app, this));
+		this.addSettingTab(new DynamicLastModifiedTimestampSettingTab(this.app, this));
 	}
 
 	async loadSettings() {
@@ -74,7 +74,7 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 	}
 }
 
-class SettingTab extends PluginSettingTab {
+class DynamicLastModifiedTimestampSettingTab extends PluginSettingTab {
 	plugin: DynamicLastModifiedTimestamp;
 
 	constructor(app: App, plugin: DynamicLastModifiedTimestamp) {
@@ -115,6 +115,5 @@ class SettingTab extends PluginSettingTab {
 					this.plugin.updateDisplay();
 				})
 			);
-			;
 	}
 }
