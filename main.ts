@@ -5,59 +5,60 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 
 interface MyPluginSettings {
-	mySetting: string;
+	timestampFormat: string;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+	timestampFormat: 'YYYY-MM-DD H:mm:ss'
 }
 
 export default class DynamicLastModifiedTimestamp extends Plugin {
 	settings: MyPluginSettings;
 	timestamp: string | null;
+	statusBarItemEl = this.addStatusBarItem();
 
+
+	myFunc() {
+
+	}
+
+	updateDisplay(): void {
+		if (this.timestamp) {
+			this.statusBarItemEl.setText(`Last Modified: ${this.timestamp}`);
+		}
+	}
+
+	updateTimestamp(hook: TimestampChangeHook | null = null): void {
+		const file: TFile | null = this.app.workspace.getActiveFile()
+		if (file) {
+			const timestamp = moment(file.stat.mtime).format(this.settings.timestampFormat);
+
+			const isTimestampChanged = timestamp != this.timestamp;
+			this.timestamp = timestamp;
+
+			if (hook) hook(isTimestampChanged)
+		}
+	}
 
 	async onload() {
 		console.log('Loaded.')
 
 		await this.loadSettings();
 
+		this.updateTimestamp()
+		this.updateDisplay()
 
-
-		const updateTimestamp = (hook: TimestampChangeHook | null = null) => {
-			const file: TFile | null = this.app.workspace.getActiveFile()
-			if (file) {
-				const timestamp = moment(file.stat.mtime).format("YYYY-MM-DD H:mm:ss");
-
-				const isTimestampChanged = timestamp != this.timestamp;
-				this.timestamp = timestamp;
-
-				if (hook) hook(isTimestampChanged)
-			}
-		}
-
-
-
-		const printTimestamp = () => {
-			console.log(`timestamp: ${this.timestamp}`)
-		}
-
-		const statusBarItemEl = this.addStatusBarItem();
-		const updateTimestampStatusBarDisplay = () => {
-			if (this.timestamp) {
-				statusBarItemEl.setText(`Last Modified: ${this.timestamp}`);
-			}
-		}
-
-		this.addCommand({
-			id: 'playground-test',
-			name: 'Playground test',
-			callback: printTimestamp
-		})
+		this.registerInterval(window.setInterval(
+			() => this.updateTimestamp((u) => {
+				if (!u) return;
+				this.updateTimestamp();
+			}),
+			2000,
+		))
 
 		this.app.workspace.on('active-leaf-change', () => {
-			updateTimestamp();
-			updateTimestampStatusBarDisplay()
+			this.updateTimestamp();
+			this.updateDisplay()
 		});
 
 		// This creates an icon in the left ribbon.
@@ -69,13 +70,6 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		this.registerInterval(window.setInterval(
-			() => updateTimestamp((u) => {
-				if (!u) return;
-				updateTimestamp();
-			}),
-			2000,
-		))
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -172,15 +166,16 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('Timestamp Format')
+			.setDesc('E.g. YYYY-MM-DD')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('Enter format')
+				.setValue(this.plugin.settings.timestampFormat)
 				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.timestampFormat = value;
 					await this.plugin.saveSettings();
+					this.plugin.updateTimestamp();
+					this.plugin.updateDisplay();
 				}));
 	}
 }
