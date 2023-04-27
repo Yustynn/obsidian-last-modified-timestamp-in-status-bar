@@ -11,10 +11,12 @@ type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 
 interface DynamicLastModifiedTimestampSettings {
 	timestampFormat: string;
+	statusBarTitle: string;
 }
 
 const DEFAULT_SETTINGS: DynamicLastModifiedTimestampSettings = {
-	timestampFormat: 'YYYY-MM-DD H:mm:ss'
+	timestampFormat: 'YYYY-MM-DD H:mm:ss',
+	statusBarTitle: 'Last Modified: ',
 }
 
 export default class DynamicLastModifiedTimestamp extends Plugin {
@@ -24,7 +26,7 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 
 	updateDisplay(): void {
 		if (this.timestamp) {
-			this.statusBarItemEl.setText(`Last Modified: ${this.timestamp}`);
+			this.statusBarItemEl.setText(this.settings.statusBarTitle + this.timestamp);
 		}
 	}
 
@@ -99,6 +101,20 @@ class SettingTab extends PluginSettingTab {
 					this.plugin.updateTimestamp();
 					this.plugin.updateDisplay();
 				})
+			)
+
+		new Setting(containerEl)
+			.setName('Title in Status Bar')
+			.addText(text => text
+				.setPlaceholder('Last Modified:')
+				.setValue(this.plugin.settings.statusBarTitle)
+				.onChange(async (value) => {
+					this.plugin.settings.statusBarTitle = value;
+					await this.plugin.saveSettings();
+					this.plugin.updateTimestamp();
+					this.plugin.updateDisplay();
+				})
 			);
+			;
 	}
 }
