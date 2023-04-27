@@ -1,4 +1,4 @@
-# Dynamic Last Modified Timestamp
+# Last Modified Timestamp in Status Bar
 Displays the last modified timestamp of your current note on your status bar!
 
 ## Usage

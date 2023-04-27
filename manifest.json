@@ -1,9 +1,9 @@
 {
-	"id": "obsidian-sample-plugin",
-	"name": "Dynamic Last Modified Timestamp",
-	"version": "0.1.0",
+	"id": "last-modified-timestamp-in-status-bar",
+	"name": "Last Modified Timestamp in Status Bar",
+	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Dynamic display of file modification timestamp",
+	"description": "Dynamic display of file modification timestamp in the status bar.",
 	"author": "Yustynn",
 	"authorUrl": null,
 	"fundingUrl": null,

@@ -9,18 +9,18 @@ import {
 
 
 type TimestampChangeHook = (isTimestampChanged: boolean) => void;
-interface DynamicLastModifiedTimestampSettings {
+interface LastModifiedTimestampInStatusBarSettings {
 	timestampFormat: string;
 	statusBarTitle: string;
 }
 
-const DEFAULT_SETTINGS: DynamicLastModifiedTimestampSettings = {
+const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	timestampFormat: 'YYYY-MM-DD H:mm:ss',
 	statusBarTitle: 'Last Modified: ',
 }
 
-export default class DynamicLastModifiedTimestamp extends Plugin {
-	settings: DynamicLastModifiedTimestampSettings;
+export default class LastModifiedTimestampInStatusBar extends Plugin {
+	settings: LastModifiedTimestampInStatusBarSettings;
 	timestamp: string | null;
 	statusBarItemEl = this.addStatusBarItem();
 
@@ -62,7 +62,7 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 			this.updateDisplay()
 		});
 
-		this.addSettingTab(new DynamicLastModifiedTimestampSettingTab(this.app, this));
+		this.addSettingTab(new LastModifiedTimestampInStatusBarSettingTab(this.app, this));
 	}
 
 	async loadSettings() {
@@ -74,10 +74,10 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 	}
 }
 
-class DynamicLastModifiedTimestampSettingTab extends PluginSettingTab {
-	plugin: DynamicLastModifiedTimestamp;
+class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
+	plugin: LastModifiedTimestampInStatusBar;
 
-	constructor(app: App, plugin: DynamicLastModifiedTimestamp) {
+	constructor(app: App, plugin: LastModifiedTimestampInStatusBar) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
