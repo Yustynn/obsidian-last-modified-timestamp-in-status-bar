@@ -1,6 +1,8 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, moment } from 'obsidian';
 
 // Remember to rename these classes and interfaces!
+
+type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 
 interface MyPluginSettings {
 	mySetting: string;
@@ -10,11 +12,53 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default'
 }
 
-export default class MyPlugin extends Plugin {
+export default class DynamicLastModifiedTimestamp extends Plugin {
 	settings: MyPluginSettings;
+	timestamp: string | null;
+
 
 	async onload() {
+		console.log('Loaded.')
+
 		await this.loadSettings();
+
+
+
+		const updateTimestamp = (hook: TimestampChangeHook | null = null) => {
+			const file: TFile | null = this.app.workspace.getActiveFile()
+			if (file) {
+				const timestamp = moment(file.stat.mtime).format("YYYY-MM-DD H:mm:ss");
+
+				const isTimestampChanged = timestamp != this.timestamp;
+				this.timestamp = timestamp;
+
+				if (hook) hook(isTimestampChanged)
+			}
+		}
+
+
+
+		const printTimestamp = () => {
+			console.log(`timestamp: ${this.timestamp}`)
+		}
+
+		const statusBarItemEl = this.addStatusBarItem();
+		const updateTimestampStatusBarDisplay = () => {
+			if (this.timestamp) {
+				statusBarItemEl.setText(`Last Modified: ${this.timestamp}`);
+			}
+		}
+
+		this.addCommand({
+			id: 'playground-test',
+			name: 'Playground test',
+			callback: printTimestamp
+		})
+
+		this.app.workspace.on('active-leaf-change', () => {
+			updateTimestamp();
+			updateTimestampStatusBarDisplay()
+		});
 
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
@@ -25,8 +69,13 @@ export default class MyPlugin extends Plugin {
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		this.registerInterval(window.setInterval(
+			() => updateTimestamp((u) => {
+				if (!u) return;
+				updateTimestamp();
+			}),
+			2000,
+		))
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -98,7 +147,7 @@ class SampleModal extends Modal {
 
 	onOpen() {
 		const {contentEl} = this;
-		contentEl.setText('Woah!');
+		contentEl.setText('Woah! Lol');
 	}
 
 	onClose() {
@@ -108,9 +157,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: DynamicLastModifiedTimestamp;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: DynamicLastModifiedTimestamp) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
