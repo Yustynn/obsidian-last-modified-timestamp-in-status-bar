@@ -50,7 +50,7 @@ export default class DynamicLastModifiedTimestamp extends Plugin {
 		this.registerInterval(window.setInterval(
 			() => this.updateTimestamp((u) => {
 				if (!u) return;
-				this.updateTimestamp();
+				this.updateDisplay();
 			}),
 			2000,
 		))
