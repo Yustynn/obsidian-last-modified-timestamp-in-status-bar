@@ -5,7 +5,6 @@
 	"minAppVersion": "0.15.0",
 	"description": "Dynamic display of file modification timestamp in the status bar.",
 	"author": "Yustynn",
-	"authorUrl": null,
-	"fundingUrl": null,
+	"authorUrl": "https://github.com/Yustynn",
 	"isDesktopOnly": true
 }
