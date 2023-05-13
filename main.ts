@@ -12,16 +12,20 @@ type TimestampChangeHook = (isTimestampChanged: boolean) => void;
 interface LastModifiedTimestampInStatusBarSettings {
 	timestampFormat: string;
 	statusBarTitle: string;
+	refreshIntervalSeconds: number;
 }
 
 const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	timestampFormat: 'YYYY-MM-DD H:mm:ss',
 	statusBarTitle: 'Last Modified: ',
+	refreshIntervalSeconds: 0.1,
 }
 
 export default class LastModifiedTimestampInStatusBar extends Plugin {
 	settings: LastModifiedTimestampInStatusBarSettings;
 	timestamp: string | null;
+	refreshInterval: number | null;
+	
 	statusBarItemEl = this.addStatusBarItem();
 
 	updateDisplay(): void {
@@ -43,19 +47,28 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		}
 	}
 
+	setRefreshInterval() {
+		if (this.refreshInterval !== null) {
+			window.clearInterval(this.refreshInterval);
+		}
+
+		this.refreshInterval = window.setInterval(
+			() => this.updateTimestamp((u) => {
+				if (!u) return;
+				this.updateDisplay();
+			}),
+			this.settings.refreshIntervalSeconds*1000,
+		);
+
+		this.registerInterval(this.refreshInterval);
+	}
+
 	async onload() {
 		await this.loadSettings();
 
 		this.updateTimestamp()
 		this.updateDisplay()
-
-		this.registerInterval(window.setInterval(
-			() => this.updateTimestamp((u) => {
-				if (!u) return;
-				this.updateDisplay();
-			}),
-			2000,
-		))
+		this.setRefreshInterval();
 
 		this.app.workspace.on('active-leaf-change', () => {
 			this.updateTimestamp();
@@ -115,5 +128,22 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					this.plugin.updateDisplay();
 				})
 			);
+
+		new Setting(containerEl)
+			.setName('Timestamp Update Interval (in seconds)')
+			.setDesc('Note: Effectively, the minimum update interval seems to be 2s.')
+			.addText(text => text
+				.setPlaceholder('2')
+				.setValue(this.plugin.settings.refreshIntervalSeconds.toString())
+				.onChange(async (value) => {
+					try {
+						this.plugin.settings.refreshIntervalSeconds = +value;
+						await this.plugin.saveSettings();
+						this.plugin.setRefreshInterval();
+					}
+					finally {}
+				})
+			);
+
 	}
 }
