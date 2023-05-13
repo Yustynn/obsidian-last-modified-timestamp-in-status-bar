@@ -8,71 +8,105 @@ import {
 } from 'obsidian';
 
 
-type TimestampChangeHook = (isTimestampChanged: boolean) => void;
+type LastModifiedimestampChangeHook = (isTimestampChanged: boolean) => void;
 interface LastModifiedTimestampInStatusBarSettings {
-	timestampFormat: string;
-	statusBarTitle: string;
+	createdPrepend: string;
+	createdTimestampFormat: string;
+	lastModifiedPrepend: string;
+	lastModifiedTimestampFormat: string;
 	refreshIntervalSeconds: number;
 }
 
 const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
-	timestampFormat: 'YYYY-MM-DD H:mm:ss',
-	statusBarTitle: 'Last Modified: ',
+	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
+	createdTimestampFormat: 'YYYY-MM-DD H:mm:ss',
+	lastModifiedPrepend: 'Last Modified: ',
+	createdPrepend: 'Created: ',
 	refreshIntervalSeconds: 0.1,
 }
 
 export default class LastModifiedTimestampInStatusBar extends Plugin {
 	settings: LastModifiedTimestampInStatusBarSettings;
-	timestamp: string | null;
-	refreshInterval: number | null;
-	
-	statusBarItemEl = this.addStatusBarItem();
 
-	updateDisplay(): void {
-		if (this.timestamp) {
-			this.statusBarItemEl.setText(this.settings.statusBarTitle + this.timestamp);
+	createdTimestamp: string | null;
+	lastModifiedTimestamp: string | null;
+	lastModifiedRefreshInterval: number | null;
+	
+	lastModifiedStatusBarItemEl = this.addStatusBarItem();
+	createdStatusBarItemEl = this.addStatusBarItem();
+
+	updateLastModifiedDisplay(): void {
+		if (this.lastModifiedTimestamp) {
+			this.lastModifiedStatusBarItemEl.setText(this.settings.lastModifiedPrepend + this.lastModifiedTimestamp);
 		}
 	}
 
-	updateTimestamp(hook: TimestampChangeHook | null = null): void {
+	updateCreatedDisplay(): void {
+		if (this.createdTimestamp) {
+			this.createdStatusBarItemEl.setText(this.settings.createdPrepend + this.createdTimestamp);
+		}
+	}
+
+	updateCreatedTimestamp(): void {
+		const file: TFile | null = this.app.workspace.getActiveFile()
+		if (file) {
+			const timestamp = moment(file.stat.ctime)
+				.format(this.settings.createdTimestampFormat);
+
+			this.createdTimestamp = timestamp;
+		}
+	}
+
+
+	updateLastModifiedTimestamp(hook: LastModifiedimestampChangeHook | null = null): void {
 		const file: TFile | null = this.app.workspace.getActiveFile()
 		if (file) {
 			const timestamp = moment(file.stat.mtime)
-				.format(this.settings.timestampFormat);
+				.format(this.settings.lastModifiedTimestampFormat);
 
-			const isTimestampChanged = timestamp != this.timestamp;
-			this.timestamp = timestamp;
+			const isTimestampChanged = timestamp != this.lastModifiedTimestamp;
+			this.lastModifiedTimestamp = timestamp;
 
 			if (hook) hook(isTimestampChanged)
 		}
 	}
 
-	setRefreshInterval() {
-		if (this.refreshInterval !== null) {
-			window.clearInterval(this.refreshInterval);
+	setLastModifiedRefreshInterval() {
+		if (this.lastModifiedRefreshInterval !== null) {
+			window.clearInterval(this.lastModifiedRefreshInterval);
 		}
 
-		this.refreshInterval = window.setInterval(
-			() => this.updateTimestamp((u) => {
+		this.lastModifiedRefreshInterval = window.setInterval(
+			() => this.updateLastModifiedTimestamp((u) => {
 				if (!u) return;
-				this.updateDisplay();
+				this.updateLastModifiedDisplay();
 			}),
 			this.settings.refreshIntervalSeconds*1000,
 		);
 
-		this.registerInterval(this.refreshInterval);
+		this.registerInterval(this.lastModifiedRefreshInterval);
 	}
 
 	async onload() {
 		await this.loadSettings();
 
-		this.updateTimestamp()
-		this.updateDisplay()
-		this.setRefreshInterval();
+		// last modified timestamp
+		this.setLastModifiedRefreshInterval();
+		this.updateLastModifiedTimestamp()
+		this.updateLastModifiedDisplay()
+
+		// created timestamp
+		this.updateCreatedTimestamp();
+		this.updateCreatedDisplay();
 
 		this.app.workspace.on('active-leaf-change', () => {
-			this.updateTimestamp();
-			this.updateDisplay()
+			// last modified timestamp
+			this.updateLastModifiedTimestamp();
+			this.updateLastModifiedDisplay()
+
+			// created timestamp
+			this.updateCreatedTimestamp();
+			this.updateCreatedDisplay();
 		});
 
 		this.addSettingTab(new LastModifiedTimestampInStatusBarSettingTab(this.app, this));
@@ -100,19 +134,19 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'Settings'});
+		containerEl.createEl('h3', {text: 'Last Modified Timestamp'});
 
 		new Setting(containerEl)
 			.setName('Timestamp Format')
 			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD')
 			.addText(text => text
 				.setPlaceholder('Enter format')
-				.setValue(this.plugin.settings.timestampFormat)
+				.setValue(this.plugin.settings.lastModifiedTimestampFormat)
 				.onChange(async (value) => {
-					this.plugin.settings.timestampFormat = value;
+					this.plugin.settings.lastModifiedTimestampFormat = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateTimestamp();
-					this.plugin.updateDisplay();
+					this.plugin.updateLastModifiedTimestamp();
+					this.plugin.updateLastModifiedDisplay();
 				})
 			)
 
@@ -120,14 +154,15 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 			.setName('Title in Status Bar')
 			.addText(text => text
 				.setPlaceholder('Last Modified:')
-				.setValue(this.plugin.settings.statusBarTitle)
+				.setValue(this.plugin.settings.lastModifiedPrepend)
 				.onChange(async (value) => {
-					this.plugin.settings.statusBarTitle = value;
+					this.plugin.settings.lastModifiedPrepend = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateTimestamp();
-					this.plugin.updateDisplay();
+					this.plugin.updateLastModifiedTimestamp();
+					this.plugin.updateLastModifiedDisplay();
 				})
 			);
+
 
 		new Setting(containerEl)
 			.setName('Timestamp Update Interval (in seconds)')
@@ -139,9 +174,38 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					try {
 						this.plugin.settings.refreshIntervalSeconds = +value;
 						await this.plugin.saveSettings();
-						this.plugin.setRefreshInterval();
+						this.plugin.setLastModifiedRefreshInterval();
 					}
 					finally {}
+				})
+			);
+
+		containerEl.createEl('h3', {text: 'Created Timestamp'});
+
+		new Setting(containerEl)
+			.setName('Timestamp Format')
+			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD')
+			.addText(text => text
+				.setPlaceholder('Enter format')
+				.setValue(this.plugin.settings.createdTimestampFormat)
+				.onChange(async (value) => {
+					this.plugin.settings.createdTimestampFormat = value;
+					await this.plugin.saveSettings();
+					this.plugin.updateCreatedTimestamp();
+					this.plugin.updateCreatedDisplay();
+				})
+			)
+
+		new Setting(containerEl)
+			.setName('Title in Status Bar')
+			.addText(text => text
+				.setPlaceholder('Created: ')
+				.setValue(this.plugin.settings.createdPrepend)
+				.onChange(async (value) => {
+					this.plugin.settings.createdPrepend = value;
+					await this.plugin.saveSettings();
+					this.plugin.updateCreatedTimestamp();
+					this.plugin.updateCreatedDisplay();
 				})
 			);
 
