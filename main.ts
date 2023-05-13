@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	createdTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	lastModifiedPrepend: 'Last Modified: ',
 	createdPrepend: 'Created: ',
-	refreshIntervalSeconds: 0.1,
+	refreshIntervalSeconds: 2,
 }
 
 export default class LastModifiedTimestampInStatusBar extends Plugin {
@@ -138,7 +138,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Timestamp Format')
-			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD')
+			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
 			.addText(text => text
 				.setPlaceholder('Enter format')
 				.setValue(this.plugin.settings.lastModifiedTimestampFormat)
@@ -153,7 +153,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Title in Status Bar')
 			.addText(text => text
-				.setPlaceholder('Last Modified:')
+				.setPlaceholder('Last Modified: ')
 				.setValue(this.plugin.settings.lastModifiedPrepend)
 				.onChange(async (value) => {
 					this.plugin.settings.lastModifiedPrepend = value;
@@ -168,7 +168,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 			.setName('Timestamp Update Interval (in seconds)')
 			.setDesc('Note: Effectively, the minimum update interval seems to be 2s.')
 			.addText(text => text
-				.setPlaceholder('2')
+				.setPlaceholder('2.0')
 				.setValue(this.plugin.settings.refreshIntervalSeconds.toString())
 				.onChange(async (value) => {
 					try {
@@ -184,7 +184,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Timestamp Format')
-			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD')
+			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
 			.addText(text => text
 				.setPlaceholder('Enter format')
 				.setValue(this.plugin.settings.createdTimestampFormat)
