@@ -10,18 +10,23 @@ import {
 
 type LastModifiedimestampChangeHook = (isTimestampChanged: boolean) => void;
 interface LastModifiedTimestampInStatusBarSettings {
+	createdEnabled: boolean;
 	createdPrepend: string;
 	createdTimestampFormat: string;
+	lastModifiedEnabled: boolean;
 	lastModifiedPrepend: string;
 	lastModifiedTimestampFormat: string;
 	refreshIntervalSeconds: number;
 }
 
 const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
-	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
-	createdTimestampFormat: 'YYYY-MM-DD H:mm:ss',
-	lastModifiedPrepend: 'Last Modified: ',
 	createdPrepend: 'Created: ',
+	createdTimestampFormat: 'YYYY-MM-DD H:mm:ss',
+	createdEnabled: true,
+	lastModifiedEnabled: true,
+	lastModifiedPrepend: 'Last Modified: ',
+	lastModifiedPrepend: 'Last Modified: ',
+	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	refreshIntervalSeconds: 2,
 }
 
@@ -32,18 +37,33 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 	lastModifiedTimestamp: string | null;
 	lastModifiedRefreshInterval: number | null;
 	
-	lastModifiedStatusBarItemEl = this.addStatusBarItem();
-	createdStatusBarItemEl = this.addStatusBarItem();
+	lastModifiedStatusBarItemEl: HTMLElement | null = this.addStatusBarItem();
+	createdStatusBarItemEl : HTMLElement | null = this.addStatusBarItem();
 
 	updateLastModifiedDisplay(): void {
-		if (this.lastModifiedTimestamp) {
+		if (this.lastModifiedTimestamp && this.settings.lastModifiedEnabled) {
+			if (this.lastModifiedStatusBarItemEl === null) {
+				this.lastModifiedStatusBarItemEl = this.addStatusBarItem();
+			}
 			this.lastModifiedStatusBarItemEl.setText(this.settings.lastModifiedPrepend + this.lastModifiedTimestamp);
+		}
+		if (!this.settings.lastModifiedEnabled && this.lastModifiedStatusBarItemEl !== null) {
+			this.lastModifiedStatusBarItemEl.remove()
+			this.lastModifiedStatusBarItemEl = null;
+
 		}
 	}
 
 	updateCreatedDisplay(): void {
-		if (this.createdTimestamp) {
+		if (this.createdTimestamp && this.settings.createdEnabled) {
+			if (this.createdStatusBarItemEl === null) {
+				this.createdStatusBarItemEl = this.addStatusBarItem();
+			}
 			this.createdStatusBarItemEl.setText(this.settings.createdPrepend + this.createdTimestamp);
+		}
+		if (!this.settings.createdEnabled && this.createdStatusBarItemEl !== null) {
+			this.createdStatusBarItemEl.remove()
+			this.createdStatusBarItemEl = null;
 		}
 	}
 
@@ -57,6 +77,15 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		}
 	}
 
+	updateCreated(): void {
+		this.updateCreatedTimestamp();
+		this.updateCreatedDisplay();
+	}
+
+	updateLastModified(): void {
+		this.updateLastModifiedTimestamp();
+		this.updateLastModifiedDisplay();
+	}
 
 	updateLastModifiedTimestamp(hook: LastModifiedimestampChangeHook | null = null): void {
 		const file: TFile | null = this.app.workspace.getActiveFile()
@@ -71,11 +100,14 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		}
 	}
 
-	setLastModifiedRefreshInterval() {
+	removeLastModifiedRefreshInterval() {
 		if (this.lastModifiedRefreshInterval !== null) {
 			window.clearInterval(this.lastModifiedRefreshInterval);
 		}
+	}
 
+	updateLastModifiedRefreshInterval() {
+		this.removeLastModifiedRefreshInterval();
 		this.lastModifiedRefreshInterval = window.setInterval(
 			() => this.updateLastModifiedTimestamp((u) => {
 				if (!u) return;
@@ -91,22 +123,28 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		await this.loadSettings();
 
 		// last modified timestamp
-		this.setLastModifiedRefreshInterval();
-		this.updateLastModifiedTimestamp()
-		this.updateLastModifiedDisplay()
+		if (this.settings.lastModifiedEnabled) {
+			this.updateLastModifiedRefreshInterval();
+			this.updateLastModified();
+		}
 
 		// created timestamp
-		this.updateCreatedTimestamp();
-		this.updateCreatedDisplay();
+		if (this.settings.createdEnabled) {
+			this.updateCreated();
+		}
 
 		this.app.workspace.on('active-leaf-change', () => {
 			// last modified timestamp
-			this.updateLastModifiedTimestamp();
-			this.updateLastModifiedDisplay()
+			if (this.settings.lastModifiedEnabled) {
+				this.updateLastModifiedTimestamp();
+				this.updateLastModifiedDisplay()
+			}
 
 			// created timestamp
-			this.updateCreatedTimestamp();
-			this.updateCreatedDisplay();
+			if (this.settings.createdEnabled) {
+				this.updateCreatedTimestamp();
+				this.updateCreatedDisplay();
+			}
 		});
 
 		this.addSettingTab(new LastModifiedTimestampInStatusBarSettingTab(this.app, this));
@@ -137,6 +175,25 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 		containerEl.createEl('h3', {text: 'Last Modified Timestamp'});
 
 		new Setting(containerEl)
+			.setName('Enabled')
+			.setDesc('Turn the display on or off in your status bar.')
+			.addToggle(bool => bool
+				.setValue(this.plugin.settings.lastModifiedEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.lastModifiedEnabled = value;
+					await this.plugin.saveSettings();
+					this.plugin.updateLastModified();
+
+					if (!value) {
+						this.plugin.removeLastModifiedRefreshInterval();
+					}
+					else {
+						this.plugin.updateLastModifiedRefreshInterval();
+					}
+				})
+			)
+
+		new Setting(containerEl)
 			.setName('Timestamp Format')
 			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
 			.addText(text => text
@@ -145,8 +202,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.lastModifiedTimestampFormat = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateLastModifiedTimestamp();
-					this.plugin.updateLastModifiedDisplay();
+					this.plugin.updateLastModified();
 				})
 			)
 
@@ -158,8 +214,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.lastModifiedPrepend = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateLastModifiedTimestamp();
-					this.plugin.updateLastModifiedDisplay();
+					this.plugin.updateLastModified();
 				})
 			);
 
@@ -174,13 +229,28 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					try {
 						this.plugin.settings.refreshIntervalSeconds = +value;
 						await this.plugin.saveSettings();
-						this.plugin.setLastModifiedRefreshInterval();
+						if (this.plugin.settings.lastModifiedEnabled) {
+							this.plugin.updateLastModifiedRefreshInterval();
+						}
 					}
 					finally {}
 				})
 			);
 
 		containerEl.createEl('h3', {text: 'Created Timestamp'});
+
+		new Setting(containerEl)
+			.setName('Enabled')
+			.setDesc('Turn the display on or off in your status bar.')
+			.addToggle(bool => bool
+				.setValue(this.plugin.settings.createdEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.createdEnabled = value;
+					await this.plugin.saveSettings();
+					this.plugin.updateCreated();
+				})
+			)
+
 
 		new Setting(containerEl)
 			.setName('Timestamp Format')
@@ -191,8 +261,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.createdTimestampFormat = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateCreatedTimestamp();
-					this.plugin.updateCreatedDisplay();
+					this.plugin.updateCreated();
 				})
 			)
 
@@ -204,8 +273,7 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.createdPrepend = value;
 					await this.plugin.saveSettings();
-					this.plugin.updateCreatedTimestamp();
-					this.plugin.updateCreatedDisplay();
+					this.plugin.updateCreated();
 				})
 			);
 
