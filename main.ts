@@ -25,7 +25,6 @@ const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	createdEnabled: true,
 	lastModifiedEnabled: true,
 	lastModifiedPrepend: 'Last Modified: ',
-	lastModifiedPrepend: 'Last Modified: ',
 	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	refreshIntervalSeconds: 2,
 }
@@ -40,17 +39,42 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 	lastModifiedStatusBarItemEl: HTMLElement | null = this.addStatusBarItem();
 	createdStatusBarItemEl : HTMLElement | null = this.addStatusBarItem();
 
+	cycleDisplayedStatus(): void {
+		if (this.settings.lastModifiedEnabled && this.settings.createdEnabled) {
+			this.settings.lastModifiedEnabled = true;
+			this.settings.createdEnabled = false;
+		}
+		else if (this.settings.lastModifiedEnabled && !this.settings.createdEnabled) {
+			this.settings.lastModifiedEnabled = false;
+			this.settings.createdEnabled = true;
+		}
+		else if (!this.settings.lastModifiedEnabled && this.settings.createdEnabled) {
+			this.settings.lastModifiedEnabled = true;
+			this.settings.createdEnabled = true;
+		}
+		else {
+			this.settings.lastModifiedEnabled = true;
+			this.settings.createdEnabled = false;
+		}
+
+		this.updateLastModified();
+		this.updateCreated();
+		this.saveSettings();
+	}
 	updateLastModifiedDisplay(): void {
 		if (this.lastModifiedTimestamp && this.settings.lastModifiedEnabled) {
 			if (this.lastModifiedStatusBarItemEl === null) {
 				this.lastModifiedStatusBarItemEl = this.addStatusBarItem();
 			}
 			this.lastModifiedStatusBarItemEl.setText(this.settings.lastModifiedPrepend + this.lastModifiedTimestamp);
+			this.lastModifiedStatusBarItemEl.onclick = () => {
+				this.cycleDisplayedStatus();
+			}
+			if(this.settings.lastModifiedEnabled)
+				this.lastModifiedStatusBarItemEl.show()
 		}
-		if (!this.settings.lastModifiedEnabled && this.lastModifiedStatusBarItemEl !== null) {
-			this.lastModifiedStatusBarItemEl.remove()
-			this.lastModifiedStatusBarItemEl = null;
-
+		if (this.lastModifiedStatusBarItemEl !== null && !this.settings.lastModifiedEnabled) {
+			this.lastModifiedStatusBarItemEl.hide()
 		}
 	}
 
@@ -60,10 +84,14 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 				this.createdStatusBarItemEl = this.addStatusBarItem();
 			}
 			this.createdStatusBarItemEl.setText(this.settings.createdPrepend + this.createdTimestamp);
+			this.createdStatusBarItemEl.onclick = () => {
+				this.cycleDisplayedStatus();
+			}
+			if(this.settings.createdEnabled)
+				this.createdStatusBarItemEl.show()
 		}
-		if (!this.settings.createdEnabled && this.createdStatusBarItemEl !== null) {
-			this.createdStatusBarItemEl.remove()
-			this.createdStatusBarItemEl = null;
+		if(this.createdStatusBarItemEl !== null && !this.settings.createdEnabled){
+			this.createdStatusBarItemEl.hide()
 		}
 	}
 
