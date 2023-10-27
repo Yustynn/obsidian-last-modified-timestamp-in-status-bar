@@ -17,6 +17,7 @@ interface LastModifiedTimestampInStatusBarSettings {
 	lastModifiedPrepend: string;
 	lastModifiedTimestampFormat: string;
 	refreshIntervalSeconds: number;
+	cycleOnClickEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
@@ -27,6 +28,7 @@ const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	lastModifiedPrepend: 'Last Modified: ',
 	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	refreshIntervalSeconds: 2,
+	cycleOnClickEnabled: false,
 }
 
 export default class LastModifiedTimestampInStatusBar extends Plugin {
@@ -68,7 +70,8 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			}
 			this.lastModifiedStatusBarItemEl.setText(this.settings.lastModifiedPrepend + this.lastModifiedTimestamp);
 			this.lastModifiedStatusBarItemEl.onclick = () => {
-				this.cycleDisplayedStatus();
+				if (this.settings.cycleOnClickEnabled)
+					this.cycleDisplayedStatus();
 			}
 			if(this.settings.lastModifiedEnabled)
 				this.lastModifiedStatusBarItemEl.show()
@@ -85,7 +88,8 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			}
 			this.createdStatusBarItemEl.setText(this.settings.createdPrepend + this.createdTimestamp);
 			this.createdStatusBarItemEl.onclick = () => {
-				this.cycleDisplayedStatus();
+				if (this.settings.cycleOnClickEnabled)
+					this.cycleDisplayedStatus();
 			}
 			if(this.settings.createdEnabled)
 				this.createdStatusBarItemEl.show()
@@ -304,6 +308,18 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					this.plugin.updateCreated();
 				})
 			);
+				
+		containerEl.createEl('h3', {text: 'Cycle Displayed Timestamp On Click'});
 
+		new Setting(containerEl)
+			.setName('Enabled')
+			.setDesc('Enable cycling between the last modified and created timestamp on click in status bar.')
+			.addToggle(bool => bool
+				.setValue(this.plugin.settings.cycleOnClickEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.cycleOnClickEnabled = value;
+					await this.plugin.saveSettings();
+				})
+			)
 	}
 }
