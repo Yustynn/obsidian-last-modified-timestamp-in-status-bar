@@ -15,8 +15,15 @@ The timestamp updates frequently (every 2 seconds, and when notes are switched).
 ![settings](./img/settings.png)
 
 # Change Log
+## 1.3.0
+- (efficiency) Update modification time based on a change (vault `modify`) event, instead of constant polling
+
+Thanks to @ pjeby for the PR
+
 ## 1.2.0
 - Add ability to toggle **Created** and **Last Modified** timestamps
+
+Thanks to @joeraad for the PR
 
 ## 1.1.0
 - Add **Created** timestamp
