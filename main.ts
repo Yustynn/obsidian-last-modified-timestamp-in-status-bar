@@ -8,7 +8,6 @@ import {
 } from 'obsidian';
 
 
-type LastModifiedimestampChangeHook = (isTimestampChanged: boolean) => void;
 interface LastModifiedTimestampInStatusBarSettings {
 	createdEnabled: boolean;
 	createdPrepend: string;
@@ -16,7 +15,6 @@ interface LastModifiedTimestampInStatusBarSettings {
 	lastModifiedEnabled: boolean;
 	lastModifiedPrepend: string;
 	lastModifiedTimestampFormat: string;
-	refreshIntervalSeconds: number;
 	cycleOnClickEnabled: boolean;
 }
 
@@ -27,7 +25,6 @@ const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	lastModifiedEnabled: true,
 	lastModifiedPrepend: 'Last Modified: ',
 	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
-	refreshIntervalSeconds: 2,
 	cycleOnClickEnabled: false,
 }
 
@@ -119,44 +116,24 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		this.updateLastModifiedDisplay();
 	}
 
-	updateLastModifiedTimestamp(hook: LastModifiedimestampChangeHook | null = null): void {
+	updateLastModifiedTimestamp(): void {
 		const file: TFile | null = this.app.workspace.getActiveFile()
 		if (file) {
-			const timestamp = moment(file.stat.mtime)
+			this.lastModifiedTimestamp = moment(file.stat.mtime)
 				.format(this.settings.lastModifiedTimestampFormat);
-
-			const isTimestampChanged = timestamp != this.lastModifiedTimestamp;
-			this.lastModifiedTimestamp = timestamp;
-
-			if (hook) hook(isTimestampChanged)
 		}
-	}
-
-	removeLastModifiedRefreshInterval() {
-		if (this.lastModifiedRefreshInterval !== null) {
-			window.clearInterval(this.lastModifiedRefreshInterval);
-		}
-	}
-
-	updateLastModifiedRefreshInterval() {
-		this.removeLastModifiedRefreshInterval();
-		this.lastModifiedRefreshInterval = window.setInterval(
-			() => this.updateLastModifiedTimestamp((u) => {
-				if (!u) return;
-				this.updateLastModifiedDisplay();
-			}),
-			this.settings.refreshIntervalSeconds*1000,
-		);
-
-		this.registerInterval(this.lastModifiedRefreshInterval);
 	}
 
 	async onload() {
 		await this.loadSettings();
+		this.registerEvent(this.app.vault.on("modify", file => {
+			if (this.settings.lastModifiedEnabled && file === this.app.workspace.getActiveFile()) {
+				this.updateLastModified();
+			}
+		}));
 
 		// last modified timestamp
 		if (this.settings.lastModifiedEnabled) {
-			this.updateLastModifiedRefreshInterval();
 			this.updateLastModified();
 		}
 
@@ -168,14 +145,12 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 		this.app.workspace.on('active-leaf-change', () => {
 			// last modified timestamp
 			if (this.settings.lastModifiedEnabled) {
-				this.updateLastModifiedTimestamp();
-				this.updateLastModifiedDisplay()
+				this.updateLastModified()
 			}
 
 			// created timestamp
 			if (this.settings.createdEnabled) {
-				this.updateCreatedTimestamp();
-				this.updateCreatedDisplay();
+				this.updateCreated();
 			}
 		});
 
@@ -215,13 +190,6 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					this.plugin.settings.lastModifiedEnabled = value;
 					await this.plugin.saveSettings();
 					this.plugin.updateLastModified();
-
-					if (!value) {
-						this.plugin.removeLastModifiedRefreshInterval();
-					}
-					else {
-						this.plugin.updateLastModifiedRefreshInterval();
-					}
 				})
 			)
 
@@ -247,25 +215,6 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 					this.plugin.settings.lastModifiedPrepend = value;
 					await this.plugin.saveSettings();
 					this.plugin.updateLastModified();
-				})
-			);
-
-
-		new Setting(containerEl)
-			.setName('Timestamp Update Interval (in seconds)')
-			.setDesc('Note: Effectively, the minimum update interval seems to be 2s.')
-			.addText(text => text
-				.setPlaceholder('2.0')
-				.setValue(this.plugin.settings.refreshIntervalSeconds.toString())
-				.onChange(async (value) => {
-					try {
-						this.plugin.settings.refreshIntervalSeconds = +value;
-						await this.plugin.saveSettings();
-						if (this.plugin.settings.lastModifiedEnabled) {
-							this.plugin.updateLastModifiedRefreshInterval();
-						}
-					}
-					finally {}
 				})
 			);
 
