@@ -4,15 +4,18 @@ import {
 	PluginSettingTab,
 	Setting,
 	TFile,
+	TextComponent,
 	moment
 } from 'obsidian';
 
 
 interface LastModifiedTimestampInStatusBarSettings {
 	createdEnabled: boolean;
+	createdRelativeTime: boolean;
 	createdPrepend: string;
 	createdTimestampFormat: string;
 	lastModifiedEnabled: boolean;
+	lastModifiedRelativeTime: boolean;
 	lastModifiedPrepend: string;
 	lastModifiedTimestampFormat: string;
 	cycleOnClickEnabled: boolean;
@@ -22,7 +25,9 @@ const DEFAULT_SETTINGS: LastModifiedTimestampInStatusBarSettings = {
 	createdPrepend: 'Created: ',
 	createdTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	createdEnabled: true,
+	createdRelativeTime: false,
 	lastModifiedEnabled: true,
+	lastModifiedRelativeTime: false,
 	lastModifiedPrepend: 'Last Modified: ',
 	lastModifiedTimestampFormat: 'YYYY-MM-DD H:mm:ss',
 	cycleOnClickEnabled: false,
@@ -73,7 +78,7 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			if(this.settings.lastModifiedEnabled)
 				this.lastModifiedStatusBarItemEl.show()
 		}
-		if (this.lastModifiedStatusBarItemEl !== null && !this.settings.lastModifiedEnabled) {
+		if (this.lastModifiedStatusBarItemEl !== null && (!this.settings.lastModifiedEnabled || !this.lastModifiedTimestamp)) {
 			this.lastModifiedStatusBarItemEl.hide()
 		}
 	}
@@ -91,7 +96,7 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			if(this.settings.createdEnabled)
 				this.createdStatusBarItemEl.show()
 		}
-		if(this.createdStatusBarItemEl !== null && !this.settings.createdEnabled){
+		if(this.createdStatusBarItemEl !== null && (!this.settings.createdEnabled || !this.createdTimestamp)){
 			this.createdStatusBarItemEl.hide()
 		}
 	}
@@ -99,10 +104,11 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 	updateCreatedTimestamp(): void {
 		const file: TFile | null = this.app.workspace.getActiveFile()
 		if (file) {
-			const timestamp = moment(file.stat.ctime)
-				.format(this.settings.createdTimestampFormat);
-
-			this.createdTimestamp = timestamp;
+			this.createdTimestamp = this.settings.createdRelativeTime
+				? moment(file.stat.ctime).fromNow()
+				: moment(file.stat.ctime).format(this.settings.createdTimestampFormat);
+		} else {
+			this.createdTimestamp = null;
 		}
 	}
 
@@ -119,8 +125,11 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 	updateLastModifiedTimestamp(): void {
 		const file: TFile | null = this.app.workspace.getActiveFile()
 		if (file) {
-			this.lastModifiedTimestamp = moment(file.stat.mtime)
-				.format(this.settings.lastModifiedTimestampFormat);
+			this.lastModifiedTimestamp = this.settings.lastModifiedRelativeTime
+				? moment(file.stat.mtime).fromNow()
+				: moment(file.stat.mtime).format(this.settings.lastModifiedTimestampFormat);
+		} else {
+			this.lastModifiedTimestamp = null;
 		}
 	}
 
@@ -142,7 +151,7 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			this.updateCreated();
 		}
 
-		this.app.workspace.on('active-leaf-change', () => {
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
 			// last modified timestamp
 			if (this.settings.lastModifiedEnabled) {
 				this.updateLastModified()
@@ -152,7 +161,17 @@ export default class LastModifiedTimestampInStatusBar extends Plugin {
 			if (this.settings.createdEnabled) {
 				this.updateCreated();
 			}
-		});
+		}));
+
+		this.lastModifiedRefreshInterval = window.setInterval(() => {
+			if (this.settings.lastModifiedRelativeTime && this.settings.lastModifiedEnabled) {
+				this.updateLastModified();
+			}
+			if (this.settings.createdRelativeTime && this.settings.createdEnabled) {
+				this.updateCreated();
+			}
+		}, 5000);
+		this.registerInterval(this.lastModifiedRefreshInterval);
 
 		this.addSettingTab(new LastModifiedTimestampInStatusBarSettingTab(this.app, this));
 	}
@@ -193,18 +212,39 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				})
 			)
 
+		let lastModifiedFormatSetting: Setting;
+		let lastModifiedFormatText: TextComponent;
+
 		new Setting(containerEl)
-			.setName('Timestamp Format')
-			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
-			.addText(text => text
-				.setPlaceholder('Enter format')
-				.setValue(this.plugin.settings.lastModifiedTimestampFormat)
+			.setName('Show Relative Time')
+			.setDesc('Display time relative to now (e.g. "a few seconds ago", "2 minutes ago").')
+			.addToggle(bool => bool
+				.setValue(this.plugin.settings.lastModifiedRelativeTime)
 				.onChange(async (value) => {
-					this.plugin.settings.lastModifiedTimestampFormat = value;
+					this.plugin.settings.lastModifiedRelativeTime = value;
 					await this.plugin.saveSettings();
 					this.plugin.updateLastModified();
+					lastModifiedFormatSetting.setDisabled(value);
+					lastModifiedFormatText.setDisabled(value);
 				})
-			)
+			);
+
+		lastModifiedFormatSetting = new Setting(containerEl)
+			.setName('Timestamp Format')
+			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
+			.addText(text => {
+				lastModifiedFormatText = text;
+				text
+					.setPlaceholder('Enter format')
+					.setValue(this.plugin.settings.lastModifiedTimestampFormat)
+					.setDisabled(this.plugin.settings.lastModifiedRelativeTime)
+					.onChange(async (value) => {
+						this.plugin.settings.lastModifiedTimestampFormat = value;
+						await this.plugin.saveSettings();
+						this.plugin.updateLastModified();
+					});
+			});
+		lastModifiedFormatSetting.setDisabled(this.plugin.settings.lastModifiedRelativeTime);
 
 		new Setting(containerEl)
 			.setName('Title in Status Bar')
@@ -232,19 +272,39 @@ class LastModifiedTimestampInStatusBarSettingTab extends PluginSettingTab {
 				})
 			)
 
+		let createdFormatSetting: Setting;
+		let createdFormatText: TextComponent;
 
 		new Setting(containerEl)
-			.setName('Timestamp Format')
-			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
-			.addText(text => text
-				.setPlaceholder('Enter format')
-				.setValue(this.plugin.settings.createdTimestampFormat)
+			.setName('Show Relative Time')
+			.setDesc('Display time relative to now (e.g. "a few seconds ago", "2 minutes ago").')
+			.addToggle(bool => bool
+				.setValue(this.plugin.settings.createdRelativeTime)
 				.onChange(async (value) => {
-					this.plugin.settings.createdTimestampFormat = value;
+					this.plugin.settings.createdRelativeTime = value;
 					await this.plugin.saveSettings();
 					this.plugin.updateCreated();
+					createdFormatSetting.setDisabled(value);
+					createdFormatText.setDisabled(value);
 				})
-			)
+			);
+
+		createdFormatSetting = new Setting(containerEl)
+			.setName('Timestamp Format')
+			.setDesc('Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss')
+			.addText(text => {
+				createdFormatText = text;
+				text
+					.setPlaceholder('Enter format')
+					.setValue(this.plugin.settings.createdTimestampFormat)
+					.setDisabled(this.plugin.settings.createdRelativeTime)
+					.onChange(async (value) => {
+						this.plugin.settings.createdTimestampFormat = value;
+						await this.plugin.saveSettings();
+						this.plugin.updateCreated();
+					});
+			});
+		createdFormatSetting.setDisabled(this.plugin.settings.createdRelativeTime);
 
 		new Setting(containerEl)
 			.setName('Title in Status Bar')
