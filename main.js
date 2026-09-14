@@ -32,7 +32,9 @@ var DEFAULT_SETTINGS = {
   createdPrepend: "Created: ",
   createdTimestampFormat: "YYYY-MM-DD H:mm:ss",
   createdEnabled: true,
+  createdRelativeTime: false,
   lastModifiedEnabled: true,
+  lastModifiedRelativeTime: false,
   lastModifiedPrepend: "Last Modified: ",
   lastModifiedTimestampFormat: "YYYY-MM-DD H:mm:ss",
   cycleOnClickEnabled: false
@@ -74,7 +76,7 @@ var LastModifiedTimestampInStatusBar = class extends import_obsidian.Plugin {
       if (this.settings.lastModifiedEnabled)
         this.lastModifiedStatusBarItemEl.show();
     }
-    if (this.lastModifiedStatusBarItemEl !== null && !this.settings.lastModifiedEnabled) {
+    if (this.lastModifiedStatusBarItemEl !== null && (!this.settings.lastModifiedEnabled || !this.lastModifiedTimestamp)) {
       this.lastModifiedStatusBarItemEl.hide();
     }
   }
@@ -91,15 +93,16 @@ var LastModifiedTimestampInStatusBar = class extends import_obsidian.Plugin {
       if (this.settings.createdEnabled)
         this.createdStatusBarItemEl.show();
     }
-    if (this.createdStatusBarItemEl !== null && !this.settings.createdEnabled) {
+    if (this.createdStatusBarItemEl !== null && (!this.settings.createdEnabled || !this.createdTimestamp)) {
       this.createdStatusBarItemEl.hide();
     }
   }
   updateCreatedTimestamp() {
     const file = this.app.workspace.getActiveFile();
     if (file) {
-      const timestamp = (0, import_obsidian.moment)(file.stat.ctime).format(this.settings.createdTimestampFormat);
-      this.createdTimestamp = timestamp;
+      this.createdTimestamp = this.settings.createdRelativeTime ? (0, import_obsidian.moment)(file.stat.ctime).fromNow() : (0, import_obsidian.moment)(file.stat.ctime).format(this.settings.createdTimestampFormat);
+    } else {
+      this.createdTimestamp = null;
     }
   }
   updateCreated() {
@@ -113,7 +116,9 @@ var LastModifiedTimestampInStatusBar = class extends import_obsidian.Plugin {
   updateLastModifiedTimestamp() {
     const file = this.app.workspace.getActiveFile();
     if (file) {
-      this.lastModifiedTimestamp = (0, import_obsidian.moment)(file.stat.mtime).format(this.settings.lastModifiedTimestampFormat);
+      this.lastModifiedTimestamp = this.settings.lastModifiedRelativeTime ? (0, import_obsidian.moment)(file.stat.mtime).fromNow() : (0, import_obsidian.moment)(file.stat.mtime).format(this.settings.lastModifiedTimestampFormat);
+    } else {
+      this.lastModifiedTimestamp = null;
     }
   }
   async onload() {
@@ -129,14 +134,23 @@ var LastModifiedTimestampInStatusBar = class extends import_obsidian.Plugin {
     if (this.settings.createdEnabled) {
       this.updateCreated();
     }
-    this.app.workspace.on("active-leaf-change", () => {
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
       if (this.settings.lastModifiedEnabled) {
         this.updateLastModified();
       }
       if (this.settings.createdEnabled) {
         this.updateCreated();
       }
-    });
+    }));
+    this.lastModifiedRefreshInterval = window.setInterval(() => {
+      if (this.settings.lastModifiedRelativeTime && this.settings.lastModifiedEnabled) {
+        this.updateLastModified();
+      }
+      if (this.settings.createdRelativeTime && this.settings.createdEnabled) {
+        this.updateCreated();
+      }
+    }, 5e3);
+    this.registerInterval(this.lastModifiedRefreshInterval);
     this.addSettingTab(new LastModifiedTimestampInStatusBarSettingTab(this.app, this));
   }
   async loadSettings() {
@@ -162,13 +176,26 @@ var LastModifiedTimestampInStatusBarSettingTab = class extends import_obsidian.P
         this.plugin.updateLastModified();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("Timestamp Format").setDesc("Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss").addText(
-      (text) => text.setPlaceholder("Enter format").setValue(this.plugin.settings.lastModifiedTimestampFormat).onChange(async (value) => {
+    let lastModifiedFormatSetting;
+    let lastModifiedFormatText;
+    new import_obsidian.Setting(containerEl).setName("Show Relative Time").setDesc('Display time relative to now (e.g. "a few seconds ago", "2 minutes ago").').addToggle(
+      (bool) => bool.setValue(this.plugin.settings.lastModifiedRelativeTime).onChange(async (value) => {
+        this.plugin.settings.lastModifiedRelativeTime = value;
+        await this.plugin.saveSettings();
+        this.plugin.updateLastModified();
+        lastModifiedFormatSetting.setDisabled(value);
+        lastModifiedFormatText.setDisabled(value);
+      })
+    );
+    lastModifiedFormatSetting = new import_obsidian.Setting(containerEl).setName("Timestamp Format").setDesc("Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss").addText((text) => {
+      lastModifiedFormatText = text;
+      text.setPlaceholder("Enter format").setValue(this.plugin.settings.lastModifiedTimestampFormat).setDisabled(this.plugin.settings.lastModifiedRelativeTime).onChange(async (value) => {
         this.plugin.settings.lastModifiedTimestampFormat = value;
         await this.plugin.saveSettings();
         this.plugin.updateLastModified();
-      })
-    );
+      });
+    });
+    lastModifiedFormatSetting.setDisabled(this.plugin.settings.lastModifiedRelativeTime);
     new import_obsidian.Setting(containerEl).setName("Title in Status Bar").addText(
       (text) => text.setPlaceholder("Last Modified: ").setValue(this.plugin.settings.lastModifiedPrepend).onChange(async (value) => {
         this.plugin.settings.lastModifiedPrepend = value;
@@ -184,13 +211,26 @@ var LastModifiedTimestampInStatusBarSettingTab = class extends import_obsidian.P
         this.plugin.updateCreated();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("Timestamp Format").setDesc("Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss").addText(
-      (text) => text.setPlaceholder("Enter format").setValue(this.plugin.settings.createdTimestampFormat).onChange(async (value) => {
+    let createdFormatSetting;
+    let createdFormatText;
+    new import_obsidian.Setting(containerEl).setName("Show Relative Time").setDesc('Display time relative to now (e.g. "a few seconds ago", "2 minutes ago").').addToggle(
+      (bool) => bool.setValue(this.plugin.settings.createdRelativeTime).onChange(async (value) => {
+        this.plugin.settings.createdRelativeTime = value;
+        await this.plugin.saveSettings();
+        this.plugin.updateCreated();
+        createdFormatSetting.setDisabled(value);
+        createdFormatText.setDisabled(value);
+      })
+    );
+    createdFormatSetting = new import_obsidian.Setting(containerEl).setName("Timestamp Format").setDesc("Compatible with Moment.js formats, e.g. YYYY-MM-DD H:mm:ss").addText((text) => {
+      createdFormatText = text;
+      text.setPlaceholder("Enter format").setValue(this.plugin.settings.createdTimestampFormat).setDisabled(this.plugin.settings.createdRelativeTime).onChange(async (value) => {
         this.plugin.settings.createdTimestampFormat = value;
         await this.plugin.saveSettings();
         this.plugin.updateCreated();
-      })
-    );
+      });
+    });
+    createdFormatSetting.setDisabled(this.plugin.settings.createdRelativeTime);
     new import_obsidian.Setting(containerEl).setName("Title in Status Bar").addText(
       (text) => text.setPlaceholder("Created: ").setValue(this.plugin.settings.createdPrepend).onChange(async (value) => {
         this.plugin.settings.createdPrepend = value;
